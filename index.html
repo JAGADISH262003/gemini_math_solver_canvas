@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jayanth</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f9;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            max-width: 1200px;
+            width: 90%;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .canvas-container {
+            width: 100%;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        canvas {
+            border: 2px solid #ddd;
+            cursor: crosshair;
+            background: black;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        button {
+            padding: 10px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        button.clear-btn {
+            background-color: #dc3545;
+        }
+
+        #outputContent {
+            background: #f0f0f0;
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+            min-height: 100px;
+        }
+
+        #loading {
+            display: none;
+            color: #007bff;
+            font-size: 16px;
+            text-align: center;
+            margin: 10px 0;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+                width: 95%;
+            }
+
+            button {
+                padding: 8px 12px;
+                font-size: 13px;
+            }
+
+            #outputContent {
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="canvas-container">
+            <canvas id="canvas"></canvas>
+        </div>
+        <div class="controls">
+            <button id="solveButton">Solve</button>
+            <button id="clearButton" class="clear-btn">Clear</button>
+            <select id="canvasSizeSelector">
+                <option value="600x400">600x400</option>
+                <option value="300x300">300x300</option>
+                <option value="800x600">800x600</option>
+                <option value="1024x768">1024x768</option>
+            </select>
+        </div>
+        <div id="loading">Processing...</div>
+        <div id="outputContent"></div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const clearButton = document.getElementById('clearButton');
+        const solveButton = document.getElementById('solveButton');
+        const loadingText = document.getElementById('loading');
+        const outputContent = document.getElementById('outputContent');
+        const canvasSizeSelector = document.getElementById('canvasSizeSelector');
+
+        let currentImageBlob = null;
+
+        function resizeCanvas(width = 600, height = 400) {
+            canvas.width = width;
+            canvas.height = height;
+            canvas.style.width = width + 'px';
+            canvas.style.height = height + 'px';
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, width, height);
+        }
+
+        function updateCanvasSize() {
+            const selectedSize = canvasSizeSelector.value.split('x');
+            const width = parseInt(selectedSize[0]);
+            const height = parseInt(selectedSize[1]);
+            resizeCanvas(width, height);
+        }
+
+         function getMousePos(canvas, event) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            
+            return {
+                x: (event.clientX - rect.left) * scaleX,
+                y: (event.clientY - rect.top) * scaleY
+            };
+        }
+
+        let isDrawing = false;
+        let lastX = 0;
+        let lastY = 0;
+
+        function startDrawing(event) {
+            isDrawing = true;
+            const pos = getMousePos(canvas, event);
+            lastX = pos.x;
+            lastY = pos.y;
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+        }
+
+        function draw(event) {
+            if (!isDrawing) return;
+
+            const pos = getMousePos(canvas, event);
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = 'white';
+
+            ctx.lineTo(pos.x, pos.y);
+            ctx.stroke();
+
+            lastX = pos.x;
+            lastY = pos.y;
+        }
+
+        function stopDrawing() {
+            isDrawing = false;
+            ctx.closePath();
+        }
+
+        function isCanvasBlank() {
+            const pixelData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+            for (let i = 0; i < pixelData.length; i += 4) {
+                if (pixelData[i] !== 0 || pixelData[i + 1] !== 0 || pixelData[i + 2] !== 0) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        async function processImage() {
+            if (isCanvasBlank()) {
+                outputContent.innerHTML = `<p class="error">Please draw something on the canvas before solving</p>`;
+                return;
+            }
+            try {
+                canvas.toBlob(async blob => {
+                    currentImageBlob = blob;
+                    loadingText.style.display = 'block';
+                    outputContent.innerHTML = '';
+
+                    const formData = new FormData();
+                    formData.append('image', currentImageBlob, 'canvas.png');
+
+                    const response = await fetch('/solve', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    if (data.error) {
+                        outputContent.innerHTML = `<p class="error">${data.error}</p>`;
+                    } else {
+                        outputContent.innerHTML = `<pre>${data.response}</pre>`;
+                    }
+                    loadingText.style.display = 'none';
+                });
+            } catch (err) {
+                loadingText.style.display = 'none';
+                outputContent.innerHTML = `<p class="error">Error: ${err.message}</p>`;
+                console.error("Error processing image:", err);
+            }
+        }
+
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseout', stopDrawing);
+
+        clearButton.addEventListener('click', () => {
+            const selectedSize = canvasSizeSelector.value.split('x');
+            const width = parseInt(selectedSize[0]);
+            const height = parseInt(selectedSize[1]);
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, width, height);
+            outputContent.innerHTML = '';
+            currentImageBlob = null;
+        });
+
+        solveButton.addEventListener('click', processImage);
+        window.addEventListener('resize', updateCanvasSize);
+        canvasSizeSelector.addEventListener('change', updateCanvasSize);
+
+        updateCanvasSize();
+    </script>
+</body>
+</html>
