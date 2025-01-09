@@ -49,6 +49,8 @@ This project is a web application built with Flask that leverages the Gemini API
 - Flask
 - Google Generative AI SDK
 - Pillow
+## Sample output
+![image](https://github.com/user-attachments/assets/fd81a98e-482b-4b61-b6b1-801e7d77f8dc)
 
 ## Contact
 
