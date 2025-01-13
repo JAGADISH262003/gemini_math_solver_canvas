@@ -13,7 +13,7 @@ This project is a web application built with Flask that leverages the Gemini API
 
 1. Clone the repository:
    ```bash
-   git clone [<repository-url>](https://github.com/JAGADISH262003/gemini_math_solver_canvas.git)
+   git clone https://github.com/JAGADISH262003/gemini_math_solver_canvas.git
    cd gemini_math_solver_canvas
    ```
 
